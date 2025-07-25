@@ -1,31 +1,38 @@
+#Mutistage Docker build to follow Devsecops practice.
+#Build the Go binary in stage1
+
 FROM golang:1.22-alpine AS builder
 
-WORKDIR /usr/src/app/
+#Set the working directory inside a container
+WORKDIR /usr/src/app
 
-# Use Go build cache for dependencies
-RUN --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=cache,target=/root/.cache/go-build \
-    mkdir -p /root/.cache/go-build
-
-# Copy
+#Copy go.mod and go.sum to leverage Docker's layer caching.
 COPY go.mod go.sum ./
 
-# Download
+#Download dependancies 
 RUN go mod download
 
-# Copy the rest of the source code
+# Copy rest of the source code.
 COPY . .
 
+#Build The Go App
 RUN go build -o product-catalog .
 
-####################################
-
+#Create a lightweight runtime container in stage 2 by copying the build image in stage1 
 FROM alpine AS release
 
-WORKDIR /usr/src/app/
+WORKDIR /usr/src/app 
 
-COPY ./products/ ./products/
+COPY ./products ./products/ 
+
+#Copy the built binary from the builder stage
 COPY --from=builder /usr/src/app/product-catalog/ ./
 
-ENV PRODUCT_CATALOG_PORT 8088
+RUN chmod +x product-catalog
+
+#App export to unused port 
+
+ENV PRODUCT_CATALOG_PORT=8088
+
 ENTRYPOINT [ "./product-catalog" ]
+
